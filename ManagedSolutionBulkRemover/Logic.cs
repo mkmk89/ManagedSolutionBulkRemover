@@ -55,6 +55,7 @@ namespace ManagedSolutionBulkRemover
                     CollectForDeletion(Service, solutionsNames, solutionsForDelete, deleteActiveLayers, logger);
                     foreach (var solution in solutionsForDelete.ToList())
                     {
+                        worker.ReportProgress(-1, $"Deleting solution {solution.UniqueName}...");
                         Delete(Service, solution, logger);
                         solutionsForDelete.Remove(solution);
                     }
