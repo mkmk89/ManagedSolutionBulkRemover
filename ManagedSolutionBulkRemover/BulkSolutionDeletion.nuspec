@@ -19,6 +19,7 @@
     </dependencies>
   </metadata>
   <files>
-    <file src="bin\Release\ManagedSolutionBulkRemover.dll" target="lib\net47\Plugins\ManagedSolutionBulkRemover.dll" />
+	  <file src="bin\Release\ManagedSolutionBulkRemover.dll" target="lib\net47\Plugins\ManagedSolutionBulkRemover.dll" />
+	  <file src="bin\Release\Microsoft.ApplicationInsights.dll" target="lib\net47\Plugins\Microsoft.ApplicationInsights.dll" />
   </files>
 </package>

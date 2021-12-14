@@ -14,6 +14,7 @@ using McTools.Xrm.Connection;
 using System.Activities.Expressions;
 using XrmToolBox.Extensibility.Args;
 using XrmToolBox.Extensibility.Interfaces;
+using Microsoft.ApplicationInsights;
 
 namespace ManagedSolutionBulkRemover
 {
@@ -48,6 +49,8 @@ namespace ManagedSolutionBulkRemover
             {
                 LogInfo("Settings found and loaded");
             }
+            TelemetryClient telemetryClient = new TelemetryClient(new Microsoft.ApplicationInsights.Extensibility.TelemetryConfiguration("a905827b-238b-406f-b25d-c3f8656b92d4"));
+            telemetryClient.TrackPageView($"Plugin started, version: {typeof(MyPluginControl).Assembly.GetName().Version}");
         }
 
         private void tsbGetSolutions_Click(object sender, EventArgs e)
@@ -104,12 +107,12 @@ namespace ManagedSolutionBulkRemover
 
             WorkAsync(new WorkAsyncInfo
             {
-                Message = "Removing solutions...",
+                Message = "Initiating...",
                 Work = (worker, args) =>
                 {
                     Logger logger = new Logger(this);
 
-                    logic.RemoveSolutions(worker, selectedRows.Select(x=>x.UniqueName).ToList(), true, logger);//TODO: make it variable
+                    logic.RemoveSolutions(worker, selectedRows.Select(x => x.UniqueName).ToList(), logger);
                 },
                 ProgressChanged = e =>
                 {
@@ -137,7 +140,7 @@ namespace ManagedSolutionBulkRemover
             });
         }
 
-       
+
         /// <summary>
         /// This event occurs when the plugin is closed
         /// </summary>
@@ -174,7 +177,7 @@ namespace ManagedSolutionBulkRemover
             text = text + Environment.NewLine;
             if (InvokeRequired)
             {
-                this.Invoke(new Action<string, Color>(AppendText), new object[] { text, color});
+                this.Invoke(new Action<string, Color>(AppendText), new object[] { text, color });
                 return;
             }
             box.SelectionStart = box.TextLength;

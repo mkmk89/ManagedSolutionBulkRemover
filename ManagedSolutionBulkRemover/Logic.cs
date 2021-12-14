@@ -15,6 +15,8 @@ using Microsoft.Crm.Sdk.Messages;
 using System.Windows.Controls;
 using Microsoft.Xrm.Sdk.Messages;
 using Microsoft.Xrm.Sdk.Metadata;
+using System.Net;
+using System.Web.Services.Protocols;
 
 namespace ManagedSolutionBulkRemover
 {
@@ -41,38 +43,45 @@ namespace ManagedSolutionBulkRemover
             return Service.RetrieveMultiple(query);
         }
 
-        internal void RemoveSolutions(BackgroundWorker worker, List<string> solutionsNames, bool deleteActiveLayers, Logger logger)
+        internal void RemoveSolutions(BackgroundWorker worker, List<string> solutionsNames, Logger logger)
         {
             try
             {
                 logger.Log($"Deleting solutions: {Environment.NewLine} {string.Join(Environment.NewLine, solutionsNames)}", Color.LightGray);
-                worker.ReportProgress(-1, "Collecting solutions dependencies...");
 
-                List<Solution> solutionsForDelete = new List<Solution>();
+                List<Solution> solutionsFailed = new List<Solution>();
 
                 do
                 {
-                    CollectForDeletion(Service, solutionsNames, solutionsForDelete, deleteActiveLayers, logger);
+                    List<Solution> solutionsForDelete = new List<Solution>();
+                    worker.ReportProgress(-1, "Collecting solutions dependencies...");
+                    CollectForDeletion(Service, solutionsNames, solutionsForDelete, logger);
                     foreach (var solution in solutionsForDelete.ToList())
                     {
+                        while (IfAnySolutionJobsRunning(Service))
+                        {
+                            worker.ReportProgress(-1, $"Waiting for running solution jobs to finish...");
+                            Thread.Sleep(TimeSpan.FromSeconds(30));
+                        }
                         worker.ReportProgress(-1, $"Deleting solution {solution.UniqueName}...");
-                        Delete(Service, solution, logger);
+                        Delete(Service, solution, solutionsFailed, logger);
                         solutionsForDelete.Remove(solution);
                     }
                 }
-                while (solutionsForDelete.Count == 0);
+                while (solutionsNames.Count > 0);
 
-                if (solutionsNames.Count == 0)
+                if (solutionsFailed.Count == 0)
                     logger.Log($"Deleted all solutions listed", Color.LightGray);
                 else
                 {
-                    foreach (var solutionName in solutionsNames)
-                        logger.Log($"Solution {solutionName} can't be deleted due to existing dependencies", Color.Red);
+                    logger.Log($"All solutions were processed, but {solutionsFailed.Count} couldn't be deleted. Check dependencies in Dynamics.", Color.LightGray);
+                    foreach (var solution in solutionsFailed)
+                        logger.Log($"Solution {solution.UniqueName} can't be deleted, check dependencies", Color.Red);
                 }
             }
             catch (Exception ex)
             {
-                logger.Log($"Error occured: {ex.Message}{Environment.NewLine}", Color.Red);
+                logger.Log($"Error occured: {ex.Message}", Color.Red);
 
             }
         }
@@ -95,7 +104,7 @@ namespace ManagedSolutionBulkRemover
                 return null;
         }
 
-        void CollectForDeletion(IOrganizationService client, List<string> solutionsNames, List<Solution> solutionsToDelete, bool deleteActiveLayers, Logger logger)
+        void CollectForDeletion(IOrganizationService client, List<string> solutionsNames, List<Solution> solutionsToDelete, Logger logger)
         {
             foreach (var solutionName in solutionsNames.ToList())
             {
@@ -121,13 +130,15 @@ namespace ManagedSolutionBulkRemover
                     }
                     catch (Exception ex)
                     {
-                        logger.Log(ex.Message, Color.Red);
+                        logger.Log($"Getting dependencies failed. Those will be reprocessed. Error: {ex.Message}", Color.Red);
                     }
                 }
+                else
+                    solutionsNames.Remove(solutionName);
             }
         }
 
-        void Delete(IOrganizationService client, Solution solution, Logger logger)
+        void Delete(IOrganizationService client, Solution solution, List<Solution> solutionsFailed, Logger logger)
         {
             string solutionName = solution.UniqueName;
             logger.Log($"Attempt to delete solution: {solutionName}", Color.LightGray);
@@ -135,11 +146,60 @@ namespace ManagedSolutionBulkRemover
             {
                 client.Delete("solution", solution.Id);
             }
-            catch (System.TimeoutException ex)
+            catch (Exception ex)
             {
-                while (CheckIfExists(client, solutionName) != null)
+                if (ex is Exception || ex is System.ServiceModel.CommunicationException)
                 {
-                    string fetch = $@"<fetch version='1.0' output-format='xml-platform' mapping='logical' distinct='false'>
+                    try
+                    {
+                        while (IsUninstallRunning(client, solutionName))
+                            Thread.Sleep(TimeSpan.FromSeconds(30));
+                    }
+                    catch (Exception ex2)
+                    {
+                        logger.Log($"Error at solution {solution.UniqueName} deletion: {ex2.Message}", Color.Red);
+                        solutionsFailed.Add(solution);
+                        return;
+                    }
+                }
+                else
+                {
+                    logger.Log($"Error at solution {solution.UniqueName} deletion: {ex.Message}", Color.Red);
+                    solutionsFailed.Add(solution);
+                    return;
+                }
+            }
+            logger.Log($"Deleted solution {solution.UniqueName}", Color.Green);
+        }
+
+        bool IsUninstallRunning(IOrganizationService client, string solutionName)
+        {
+            string fetch = $@"<fetch version='1.0' output-format='xml-platform' mapping='logical' distinct='false'>
+                      <entity name='msdyn_solutionhistory'>
+                        <attribute name='msdyn_status' />
+                        <attribute name='msdyn_operation' />
+                        <attribute name='msdyn_exceptionmessage' />
+                        <attribute name='msdyn_result' />
+                        <attribute name='msdyn_solutionhistoryid' />
+                        <filter type='and'>
+                          <condition attribute='msdyn_operation' operator='eq' value='1' />
+                          <condition attribute='msdyn_name' operator='eq' value='{solutionName}' />
+                        </filter>
+                      </entity>
+                    </fetch>";
+            var query = new FetchExpression(fetch);
+            var result = client.RetrieveMultiple(query).Entities;
+            if (result.Where(x => ((OptionSetValue)x["msdyn_status"]).Value == 0).ToList().Count > 0)//there is running job
+                return true;
+            else if (result.Where(x => ((OptionSetValue)x["msdyn_status"]).Value == 1 && ((bool)x["msdyn_result"]) == false).ToList().Count > 0)//completed but failed
+                throw new Exception(result.Where(x => ((bool)x["msdyn_result"]) == false).First().GetAttributeValue<string>("msdyn_exceptionmessage"));
+            else
+                return false;
+        }
+
+        bool IfAnySolutionJobsRunning(IOrganizationService client)
+        {
+            string fetch = $@"<fetch version='1.0' output-format='xml-platform' mapping='logical' distinct='false'>
                       <entity name='msdyn_solutionhistory'>
                         <attribute name='msdyn_name' />
                         <attribute name='msdyn_suboperation' />
@@ -153,23 +213,15 @@ namespace ManagedSolutionBulkRemover
                         <attribute name='msdyn_result' />
                         <attribute name='msdyn_solutionhistoryid' />
                         <filter type='and'>
-                          <condition attribute='msdyn_operation' operator='eq' value='1' />
                           <condition attribute='msdyn_status' operator='eq' value='0' />
-                          <condition attribute='msdyn_name' operator='eq' value='{solutionName}' />
                         </filter>
                       </entity>
                     </fetch>";
-                    var query = new FetchExpression(fetch);
-                    if (client.RetrieveMultiple(query).Entities.Count == 0)
-                        break;
-                    Thread.Sleep(TimeSpan.FromSeconds(30));
-                }
-            }
-            catch (Exception ex)
-            {
-                logger.Log($"Error at solution deletion: {ex.Message}", Color.Red);
-            }
-            logger.Log($"Deleted solution {solution.FriendlyName}", Color.Green);
+            var query = new FetchExpression(fetch);
+            if (client.RetrieveMultiple(query).Entities.Count == 0)
+                return false;
+            else
+                return true;
         }
     }
 }

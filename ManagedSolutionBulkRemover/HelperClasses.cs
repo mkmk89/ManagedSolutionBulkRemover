@@ -23,32 +23,18 @@ namespace ManagedSolutionBulkRemover
             this.Plugin = plugin;
         }
 
-        RichTextBox LogBox { get; set; }
         MyPluginControl Plugin { get; set; }
 
         internal void Log(string text, Color color)
         {
-            Plugin.AppendText(text, color);
+            Plugin.AppendText($"{DateTime.Now}: {text}", color);
         }
-    }
-
-    public class LogLine
-    {
-        public LogLine(string text, Color color)
-        {
-            this.Text = text;
-            this.Color = color;
-        }
-        public string Text { get; set; }
-        public Color Color { get; set; }
     }
 
     public class Solution
     {
         public Solution()
         {
-            DependentSolutions = new List<Solution>();
-            RequiredSolutions = new List<Solution>();
         }
 
         public Solution(Guid id, string uniqueName, EntityReference parentSolutionId) : this()
@@ -68,23 +54,6 @@ namespace ManagedSolutionBulkRemover
         }
 
         public Entity Entity { get; internal set; }
-
-        public List<Solution> DependentSolutions;
-        public List<Solution> RequiredSolutions;
-
-        public List<Solution> GetDependentSolutions(Solution solution = null, List<Solution> list = null)
-        {
-            var currentSolution = solution ?? this;
-            var sols = list ?? new List<Solution> { this };
-
-            foreach (var ds in currentSolution.DependentSolutions)
-            {
-                sols.Add(ds);
-                GetDependentSolutions(ds, list);
-            }
-
-            return sols;
-        }
 
         public override string ToString()
         {
