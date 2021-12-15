@@ -8,7 +8,6 @@
 		<owners>Maciej Kornacki</owners>
 		<requireLicenseAcceptance>false</requireLicenseAcceptance>
 		<projectUrl>https://github.com/mkmk89/ManagedSolutionBulkRemover</projectUrl>
-		<readme>https://raw.githubusercontent.com/mkmk89/ManagedSolutionBulkRemover/main/README.md</readme>
 		<iconUrl>https://github.com/mkmk89/ManagedSolutionBulkRemover/raw/main/icon.png</iconUrl>
 		<description>This XrmToolbox plugin can delete managed solution in bulk. Select solutions, run the plugin and selected solutions in order which will consider dependencies.</description>
 		<summary>This XrmToolbox plugin can delete managed solution in bulk. Select solutions, run the plugin and selected solutions in order which will consider dependencies.</summary>
