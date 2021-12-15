@@ -1,6 +1,6 @@
 [![Build Status](https://dev.azure.com/maciejkornacki/My%20Dynamics%20Developments/_apis/build/status/UnmanagedLayerBulkRemover%20Nuget%20publishing%20pipeline?branchName=master)](https://dev.azure.com/maciejkornacki/My%20Dynamics%20Developments/_build/latest?definitionId=8&branchName=master)
 # Description
-This is XrmToolbox plugin can delete managed solutionsin bulk. Select solutions you want to delete and it will iterate through them, considenring dependencies order.
+This XrmToolbox plugin can delete managed solutionsin bulk. Select solutions you want to delete and it will iterate through them, considenring dependencies order.
 
 # Instlalation
 You can install the plugin through XrmToolBox Plugin Store
