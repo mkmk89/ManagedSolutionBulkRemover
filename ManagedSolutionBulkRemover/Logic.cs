@@ -56,6 +56,8 @@ namespace ManagedSolutionBulkRemover
                     List<Solution> solutionsForDelete = new List<Solution>();
                     worker.ReportProgress(-1, "Collecting solutions dependencies...");
                     CollectForDeletion(Service, solutionsNames, solutionsForDelete, logger);
+                    if (solutionsForDelete.Count == 0)
+                        break;
                     foreach (var solution in solutionsForDelete.ToList())
                     {
                         while (IfAnySolutionJobsRunning(Service))
@@ -70,13 +72,15 @@ namespace ManagedSolutionBulkRemover
                 }
                 while (solutionsNames.Count > 0);
 
-                if (solutionsFailed.Count == 0)
+                if (solutionsFailed.Count == 0 && solutionsNames.Count == 0)
                     logger.Log($"Deleted all solutions listed", Color.LightGray);
                 else
                 {
-                    logger.Log($"All solutions were processed, but {solutionsFailed.Count} couldn't be deleted. Check dependencies in Dynamics.", Color.LightGray);
+                    logger.Log($"All solutions were processed, but {solutionsFailed.Count} failed at delete attempt and {solutionsNames.Count} couldn't be deleted due to existing dependencies. Check dependencies in Dynamics, resolve them and run the job again.", Color.LightGray);
                     foreach (var solution in solutionsFailed)
-                        logger.Log($"Solution {solution.UniqueName} can't be deleted, check dependencies", Color.Red);
+                        logger.Log($"Solution {solution.UniqueName} deletion failed", Color.Red);
+                    foreach (var solutionName in solutionsNames)
+                        logger.Log($"Solution {solutionName} can't be deleted due to existing dependencies.", Color.Red);
                 }
             }
             catch (Exception ex)
