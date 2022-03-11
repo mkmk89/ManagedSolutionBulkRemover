@@ -14,7 +14,6 @@ using McTools.Xrm.Connection;
 using System.Activities.Expressions;
 using XrmToolBox.Extensibility.Args;
 using XrmToolBox.Extensibility.Interfaces;
-using Microsoft.ApplicationInsights;
 
 namespace ManagedSolutionBulkRemover
 {
@@ -49,8 +48,6 @@ namespace ManagedSolutionBulkRemover
             {
                 LogInfo("Settings found and loaded");
             }
-            TelemetryClient telemetryClient = new TelemetryClient(new Microsoft.ApplicationInsights.Extensibility.TelemetryConfiguration("a905827b-238b-406f-b25d-c3f8656b92d4"));
-            telemetryClient.TrackPageView($"Plugin started, version: {typeof(MyPluginControl).Assembly.GetName().Version}");
         }
 
         private void tsbGetSolutions_Click(object sender, EventArgs e)
